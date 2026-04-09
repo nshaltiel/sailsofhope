@@ -195,8 +195,18 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
         >
           <div className="bg-white w-full max-w-6xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col border-4 border-sky-900">
             <div className="bg-sky-900 p-8 flex justify-between items-start text-white">
-              <h2 className="text-3xl font-extrabold text-amber-400">כל מפרשי התקווה בסדנה</h2>
-              <button onClick={() => setShowList(false)} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full">✕</button>
+              <div>
+                <h2 className="text-3xl font-extrabold text-amber-400">כל הפעולות</h2>
+                <p className="mt-3 text-sky-100 text-base leading-relaxed">
+                  התבוננו בפעולות ובחרו יחד 1-2 פעולות מסקרנות / חדשות עבור כל אחד מהעוגנים:
+                </p>
+                <ul className="mt-2 text-amber-300 font-bold space-y-1 text-sm">
+                  <li>• החזקת אופק עתידי</li>
+                  <li>• החזרת תחושת מסוגלות</li>
+                  <li>• שימור משמעות בתוך הכאוס</li>
+                </ul>
+              </div>
+              <button onClick={() => setShowList(false)} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full self-start">✕</button>
             </div>
             <div className="p-8 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 bg-slate-50">
               {actions.length === 0 && (
