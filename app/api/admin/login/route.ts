@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   const { username, password } = await req.json();
 
   const validUser = process.env.ADMIN_USERNAME ?? "admin";
-  const validPass = process.env.ADMIN_PASSWORD ?? "amin123";
+  const validPass = process.env.ADMIN_PASSWORD ?? "admin123";
 
   if (username !== validUser || password !== validPass) {
     return NextResponse.json({ error: "שם משתמש או סיסמה שגויים" }, { status: 401 });

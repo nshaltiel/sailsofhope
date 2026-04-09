@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-
 export default function LoginPage() {
-  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -21,7 +18,7 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        router.push("/admin");
+        window.location.href = "/admin";
       } else {
         setError(data?.error || "שגיאה");
       }
