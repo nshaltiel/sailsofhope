@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
-import { db, type Action } from "@/lib/firebase";
+
+type Action = { id: string; session_id: string; text: string; created_at: number };
 
 const BOAT_SVG = `
   <svg class="w-full h-full" viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg">
@@ -23,11 +23,13 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
   const seaRef = useRef<HTMLDivElement>(null);
   const cloudsRef = useRef<HTMLDivElement>(null);
   const boatNodes = useRef<Map<string, HTMLDivElement>>(new Map());
+  const knownIds = useRef<Set<string>>(new Set());
   const [actions, setActions] = useState<Action[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [showList, setShowList] = useState(false);
   const [newText, setNewText] = useState("");
 
+  // clouds
   useEffect(() => {
     const c = cloudsRef.current;
     if (!c) return;
@@ -44,41 +46,56 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
     }
   }, []);
 
+  // polling
   useEffect(() => {
-    const q = query(
-      collection(db, "actions"),
-      where("session_id", "==", sessionId),
-      orderBy("created_at", "asc")
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const list: Action[] = [];
-      snap.docChanges().forEach((change) => {
-        const data = { id: change.doc.id, ...(change.doc.data() as Omit<Action, "id">) };
-        if (change.type === "added") {
-          createBoat(data);
-        } else if (change.type === "removed") {
-          removeBoat(data.id);
+    let cancelled = false;
+
+    async function poll() {
+      if (cancelled) return;
+      try {
+        const res = await fetch(`/api/actions?sessionId=${sessionId}`);
+        if (!res.ok) return;
+        const data: Action[] = await res.json();
+
+        const currentIds = new Set(data.map((a) => a.id));
+
+        // new actions → create boats
+        for (const action of data) {
+          if (!knownIds.current.has(action.id)) {
+            knownIds.current.add(action.id);
+            createBoat(action);
+          }
         }
-      });
-      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as Omit<Action, "id">) }));
-      setActions(list);
-    });
-    return () => unsub();
+
+        // removed actions → remove boats
+        for (const id of Array.from(knownIds.current)) {
+          if (!currentIds.has(id)) {
+            knownIds.current.delete(id);
+            removeBoat(id);
+          }
+        }
+
+        setActions(data);
+      } catch {
+        // network hiccup — retry next cycle
+      } finally {
+        if (!cancelled) setTimeout(poll, 2000);
+      }
+    }
+
+    poll();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   function removeBoat(id: string) {
     const node = boatNodes.current.get(id);
-    if (node) {
-      node.remove();
-      boatNodes.current.delete(id);
-    }
+    if (node) { node.remove(); boatNodes.current.delete(id); }
   }
 
   function createBoat(action: Action) {
     const sea = seaRef.current;
-    if (!sea) return;
-    if (boatNodes.current.has(action.id)) return;
+    if (!sea || boatNodes.current.has(action.id)) return;
 
     const wrapper = document.createElement("div");
     wrapper.className = "boat floating";
@@ -86,12 +103,12 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
     const lane = Math.floor(Math.random() * 4);
     wrapper.style.top = `${15 + lane * 20}%`;
 
-    const isLeftToRight = Math.random() > 0.5;
-    const startX = isLeftToRight ? -400 : window.innerWidth + 100;
-    const endX = isLeftToRight ? window.innerWidth + 400 : -400;
+    const ltr = Math.random() > 0.5;
+    const startX = ltr ? -400 : window.innerWidth + 100;
+    const endX = ltr ? window.innerWidth + 400 : -400;
     wrapper.style.left = `${startX}px`;
 
-    const flip = !isLeftToRight ? 'style="transform: scaleX(-1)"' : "";
+    const flip = !ltr ? 'style="transform: scaleX(-1)"' : "";
     wrapper.innerHTML = `
       <div class="boat-text">${escapeHtml(action.text)}</div>
       <div class="boat-svg-container" ${flip}>${BOAT_SVG}</div>
@@ -108,12 +125,12 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
       (wrapper as any)._anim = anim;
       anim.onfinish = () => {
         if (boatNodes.current.get(action.id) !== wrapper) return;
-        const ltr = Math.random() > 0.5;
-        const ns = ltr ? -400 : window.innerWidth + 100;
-        const ne = ltr ? window.innerWidth + 400 : -400;
+        const newLtr = Math.random() > 0.5;
+        const ns = newLtr ? -400 : window.innerWidth + 100;
+        const ne = newLtr ? window.innerWidth + 400 : -400;
         wrapper.style.left = `${ns}px`;
         const svgWrap = wrapper.querySelector(".boat-svg-container") as HTMLElement | null;
-        if (svgWrap) svgWrap.style.transform = ltr ? "" : "scaleX(-1)";
+        if (svgWrap) svgWrap.style.transform = newLtr ? "" : "scaleX(-1)";
         loop(ns, ne);
       };
     };

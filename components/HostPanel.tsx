@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
-import { db, type Action } from "@/lib/firebase";
+
+type Action = { id: string; session_id: string; text: string; created_at: number };
 
 export default function HostPanel({
   sessionId,
@@ -16,15 +16,23 @@ export default function HostPanel({
   const [actions, setActions] = useState<Action[]>([]);
 
   useEffect(() => {
-    const q = query(
-      collection(db, "actions"),
-      where("session_id", "==", sessionId),
-      orderBy("created_at", "desc")
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      setActions(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Action, "id">) })));
-    });
-    return () => unsub();
+    let cancelled = false;
+
+    async function poll() {
+      if (cancelled) return;
+      try {
+        const res = await fetch(`/api/actions?sessionId=${sessionId}`);
+        if (res.ok) {
+          const data: Action[] = await res.json();
+          setActions(data.slice().reverse()); // newest first
+        }
+      } catch { /* ignore */ } finally {
+        if (!cancelled) setTimeout(poll, 2000);
+      }
+    }
+
+    poll();
+    return () => { cancelled = true; };
   }, [sessionId]);
 
   async function del(id: string) {

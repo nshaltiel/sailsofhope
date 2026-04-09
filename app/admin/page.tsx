@@ -23,6 +23,16 @@ export default function AdminPage() {
     fetchSessions();
   }, []);
 
+  async function deleteSession(id: string, title: string | null) {
+    if (!confirm(`למחוק את הסדנה "${title || "ללא כותרת"}" וכל הפעולות שלה?`)) return;
+    await fetch("/api/admin/sessions/delete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ session_id: id }),
+    });
+    fetchSessions();
+  }
+
   async function fetchSessions() {
     setLoadingSessions(true);
     try {
@@ -184,6 +194,12 @@ export default function AdminPage() {
                     >
                       🔑 ניהול
                     </a>
+                    <button
+                      onClick={() => deleteSession(s.id, s.title)}
+                      className="bg-red-100 hover:bg-red-200 text-red-700 font-bold py-1.5 px-3 rounded-lg text-xs"
+                    >
+                      🗑️ מחק
+                    </button>
                   </div>
                 </li>
               ))}

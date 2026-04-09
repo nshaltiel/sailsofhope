@@ -3,6 +3,28 @@ import { getAdminDb } from "@/lib/firebase-admin";
 
 export const runtime = "nodejs";
 
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const sessionId = searchParams.get("sessionId");
+  if (!sessionId) return NextResponse.json({ error: "missing sessionId" }, { status: 400 });
+
+  const db = getAdminDb();
+  const snap = await db
+    .collection("actions")
+    .where("session_id", "==", sessionId)
+    .orderBy("created_at", "asc")
+    .get();
+
+  const actions = snap.docs.map((d) => ({
+    id: d.id,
+    session_id: d.get("session_id") as string,
+    text: d.get("text") as string,
+    created_at: d.get("created_at") as number,
+  }));
+
+  return NextResponse.json(actions);
+}
+
 export async function POST(req: Request) {
   const { slug, text } = await req.json();
   if (!slug || typeof text !== "string") {
