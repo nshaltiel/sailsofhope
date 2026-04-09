@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { getAdminDb } from "@/lib/firebase-admin";
 import { makeHostCode, makeSlug } from "@/lib/ids";
 
 export const runtime = "nodejs";
@@ -10,11 +10,12 @@ export async function POST(req: Request) {
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const slug = makeSlug();
-    const existing = await adminDb.collection("sessions").where("slug", "==", slug).limit(1).get();
+    const db = getAdminDb();
+    const existing = await db.collection("sessions").where("slug", "==", slug).limit(1).get();
     if (!existing.empty) continue;
 
     const host_code = makeHostCode();
-    const doc = await adminDb.collection("sessions").add({
+    const doc = await db.collection("sessions").add({
       slug,
       title,
       host_code,

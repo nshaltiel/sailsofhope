@@ -1,12 +1,18 @@
 import { initializeApp, getApps, cert, type App } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
-function init(): App {
-  if (getApps().length) return getApps()[0]!;
-  const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (!json) throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON env var missing");
-  const creds = JSON.parse(json);
-  return initializeApp({ credential: cert(creds) });
+let _db: Firestore | null = null;
+
+export function getAdminDb(): Firestore {
+  if (_db) return _db;
+  let app: App;
+  if (getApps().length) {
+    app = getApps()[0]!;
+  } else {
+    const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (!json) throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON env var missing");
+    app = initializeApp({ credential: cert(JSON.parse(json)) });
+  }
+  _db = getFirestore(app);
+  return _db;
 }
-
-export const adminDb = getFirestore(init());

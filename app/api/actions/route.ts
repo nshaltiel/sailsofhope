@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { getAdminDb } from "@/lib/firebase-admin";
 
 export const runtime = "nodejs";
 
@@ -13,11 +13,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "text too short" }, { status: 400 });
   }
 
-  const sess = await adminDb.collection("sessions").where("slug", "==", slug).limit(1).get();
+  const db = getAdminDb();
+  const sess = await db.collection("sessions").where("slug", "==", slug).limit(1).get();
   if (sess.empty) return NextResponse.json({ error: "session not found" }, { status: 404 });
   const sessionId = sess.docs[0].id;
 
-  const doc = await adminDb.collection("actions").add({
+  const doc = await db.collection("actions").add({
     session_id: sessionId,
     text: trimmed,
     created_at: Date.now(),

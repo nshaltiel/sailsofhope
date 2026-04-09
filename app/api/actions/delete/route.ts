@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { getAdminDb } from "@/lib/firebase-admin";
 
 export const runtime = "nodejs";
 
@@ -9,12 +9,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "missing fields" }, { status: 400 });
   }
 
-  const actionRef = adminDb.collection("actions").doc(action_id);
+  const db = getAdminDb();
+  const actionRef = db.collection("actions").doc(action_id);
   const actionSnap = await actionRef.get();
   if (!actionSnap.exists) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   const sessionId = actionSnap.get("session_id") as string;
-  const sessionSnap = await adminDb.collection("sessions").doc(sessionId).get();
+  const sessionSnap = await db.collection("sessions").doc(sessionId).get();
   if (!sessionSnap.exists) return NextResponse.json({ error: "session not found" }, { status: 404 });
 
   if (sessionSnap.get("host_code") !== host_code) {
