@@ -8,7 +8,9 @@
       "Bash(gh auth:*)",
       "Bash(git config:*)",
       "Bash(git -c user.email=\"nadav@local\" -c user.name=\"Nadav\" add .)",
-      "Bash(git -c user.email=\"nadav@local\" -c user.name=\"Nadav\" commit -m \"Initial commit: Sails of Hope app\")"
+      "Bash(git -c user.email=\"nadav@local\" -c user.name=\"Nadav\" commit -m \"Initial commit: Sails of Hope app\")",
+      "Bash(git -c user.email=\"nadav@local\" -c user.name=\"Nadav\" add -A)",
+      "Bash(git -c user.email=\"nadav@local\" -c user.name=\"Nadav\" commit -m \"Switch from Supabase to Firebase/Firestore\")"
     ]
   }
 }

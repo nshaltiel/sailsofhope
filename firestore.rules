@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // sessions: anyone can create and read. host_code is the only secret.
+    match /sessions/{sessionId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['slug','title','host_code','created_at'])
+                    && request.resource.data.slug is string
+                    && request.resource.data.host_code is string;
+      allow update, delete: if false;
+    }
+
+    // actions: anyone can read; create allowed if linked to an existing session.
+    // Deletes are blocked client-side; only the server (firebase-admin) can delete.
+    match /actions/{actionId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['session_id','text','created_at'])
+                    && request.resource.data.text is string
+                    && request.resource.data.text.size() <= 200
+                    && exists(/databases/$(database)/documents/sessions/$(request.resource.data.session_id));
+      allow update, delete: if false;
+    }
+  }
+}

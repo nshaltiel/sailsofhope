@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { supabase, type Action } from "@/lib/supabase";
+import { collection, getDocs, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import { db, type Action } from "@/lib/firebase";
 
 export default function HostPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -14,55 +15,32 @@ export default function HostPage() {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase
-        .from("sessions")
-        .select("id, host_code")
-        .eq("slug", slug)
-        .single();
-      if (error || !data) {
+      const snap = await getDocs(query(collection(db, "sessions"), where("slug", "==", slug), limit(1)));
+      if (snap.empty) {
         setError("סדנה לא נמצאה");
         return;
       }
-      if (data.host_code !== code) {
+      const doc = snap.docs[0];
+      if (doc.get("host_code") !== code) {
         setError("קוד מנחה שגוי");
         return;
       }
-      setSessionId(data.id);
+      setSessionId(doc.id);
       setVerified(true);
     })();
   }, [slug, code]);
 
   useEffect(() => {
     if (!sessionId) return;
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from("actions")
-        .select("*")
-        .eq("session_id", sessionId)
-        .order("created_at", { ascending: false });
-      if (!cancelled && data) setActions(data as Action[]);
-    })();
-
-    const ch = supabase
-      .channel(`host:${sessionId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "actions", filter: `session_id=eq.${sessionId}` },
-        (payload) => {
-          if (payload.eventType === "INSERT") {
-            setActions((prev) => [payload.new as Action, ...prev]);
-          } else if (payload.eventType === "DELETE") {
-            const id = (payload.old as Action).id;
-            setActions((prev) => prev.filter((a) => a.id !== id));
-          }
-        }
-      )
-      .subscribe();
-    return () => {
-      cancelled = true;
-      supabase.removeChannel(ch);
-    };
+    const q = query(
+      collection(db, "actions"),
+      where("session_id", "==", sessionId),
+      orderBy("created_at", "desc")
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setActions(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Action, "id">) })));
+    });
+    return () => unsub();
   }, [sessionId]);
 
   async function del(id: string) {
@@ -110,9 +88,7 @@ export default function HostPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow overflow-hidden">
-          <div className="bg-sky-900 text-white p-4 font-bold">
-            פעולות בסדנה ({actions.length})
-          </div>
+          <div className="bg-sky-900 text-white p-4 font-bold">פעולות בסדנה ({actions.length})</div>
           <ul className="divide-y divide-slate-100">
             {actions.length === 0 && <li className="p-6 text-center text-slate-400">אין פעולות עדיין</li>}
             {actions.map((a) => (
@@ -121,12 +97,7 @@ export default function HostPage() {
                   <div className="text-sky-900 font-medium">{a.text}</div>
                   <div className="text-xs text-slate-400">{new Date(a.created_at).toLocaleString("he-IL")}</div>
                 </div>
-                <button
-                  onClick={() => del(a.id)}
-                  className="bg-red-100 hover:bg-red-200 text-red-700 font-bold py-2 px-4 rounded-xl"
-                >
-                  מחק
-                </button>
+                <button onClick={() => del(a.id)} className="bg-red-100 hover:bg-red-200 text-red-700 font-bold py-2 px-4 rounded-xl">מחק</button>
               </li>
             ))}
           </ul>

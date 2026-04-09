@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { supabase, type Action } from "@/lib/supabase";
+import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import { db, type Action } from "@/lib/firebase";
 
 const BOAT_SVG = `
   <svg class="w-full h-full" viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg">
@@ -15,11 +16,7 @@ const BOAT_SVG = `
 `;
 
 function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 export default function SeaView({ sessionId, slug }: { sessionId: string; slug: string }) {
@@ -31,7 +28,6 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
   const [showList, setShowList] = useState(false);
   const [newText, setNewText] = useState("");
 
-  // init clouds once
   useEffect(() => {
     const c = cloudsRef.current;
     if (!c) return;
@@ -48,47 +44,26 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
     }
   }, []);
 
-  // initial fetch + realtime subscription
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from("actions")
-        .select("*")
-        .eq("session_id", sessionId)
-        .order("created_at", { ascending: true });
-      if (!cancelled && data) {
-        setActions(data as Action[]);
-        (data as Action[]).forEach((a) => createBoat(a));
-      }
-    })();
-
-    const channel = supabase
-      .channel(`actions:${sessionId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "actions", filter: `session_id=eq.${sessionId}` },
-        (payload) => {
-          const a = payload.new as Action;
-          setActions((prev) => (prev.find((x) => x.id === a.id) ? prev : [...prev, a]));
-          createBoat(a);
+    const q = query(
+      collection(db, "actions"),
+      where("session_id", "==", sessionId),
+      orderBy("created_at", "asc")
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const list: Action[] = [];
+      snap.docChanges().forEach((change) => {
+        const data = { id: change.doc.id, ...(change.doc.data() as Omit<Action, "id">) };
+        if (change.type === "added") {
+          createBoat(data);
+        } else if (change.type === "removed") {
+          removeBoat(data.id);
         }
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "actions", filter: `session_id=eq.${sessionId}` },
-        (payload) => {
-          const id = (payload.old as Action).id;
-          setActions((prev) => prev.filter((x) => x.id !== id));
-          removeBoat(id);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      cancelled = true;
-      supabase.removeChannel(channel);
-    };
+      });
+      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as Omit<Action, "id">) }));
+      setActions(list);
+    });
+    return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
@@ -109,8 +84,7 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
     wrapper.className = "boat floating";
 
     const lane = Math.floor(Math.random() * 4);
-    const topPos = 15 + lane * 20;
-    wrapper.style.top = `${topPos}%`;
+    wrapper.style.top = `${15 + lane * 20}%`;
 
     const isLeftToRight = Math.random() > 0.5;
     const startX = isLeftToRight ? -400 : window.innerWidth + 100;
@@ -126,34 +100,24 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
     sea.appendChild(wrapper);
     boatNodes.current.set(action.id, wrapper);
 
-    const duration = (Math.random() * 10 + 25) * 1000;
-    const animate = () => {
+    const loop = (sX: number, eX: number) => {
       const anim = wrapper.animate(
-        [{ left: `${startX}px` }, { left: `${endX}px` }],
-        { duration, easing: "linear" }
+        [{ left: `${sX}px` }, { left: `${eX}px` }],
+        { duration: (Math.random() * 10 + 25) * 1000, easing: "linear" }
       );
-      anim.onfinish = () => {
-        if (boatNodes.current.get(action.id) === wrapper) {
-          // restart loop with new random direction
-          const ltr = Math.random() > 0.5;
-          const sX = ltr ? -400 : window.innerWidth + 100;
-          const eX = ltr ? window.innerWidth + 400 : -400;
-          wrapper.style.left = `${sX}px`;
-          const svgWrap = wrapper.querySelector(".boat-svg-container") as HTMLElement | null;
-          if (svgWrap) svgWrap.style.transform = ltr ? "" : "scaleX(-1)";
-          (wrapper as any)._startX = sX;
-          (wrapper as any)._endX = eX;
-          const a2 = wrapper.animate(
-            [{ left: `${sX}px` }, { left: `${eX}px` }],
-            { duration: (Math.random() * 10 + 25) * 1000, easing: "linear" }
-          );
-          a2.onfinish = anim.onfinish;
-          (wrapper as any)._anim = a2;
-        }
-      };
       (wrapper as any)._anim = anim;
+      anim.onfinish = () => {
+        if (boatNodes.current.get(action.id) !== wrapper) return;
+        const ltr = Math.random() > 0.5;
+        const ns = ltr ? -400 : window.innerWidth + 100;
+        const ne = ltr ? window.innerWidth + 400 : -400;
+        wrapper.style.left = `${ns}px`;
+        const svgWrap = wrapper.querySelector(".boat-svg-container") as HTMLElement | null;
+        if (svgWrap) svgWrap.style.transform = ltr ? "" : "scaleX(-1)";
+        loop(ns, ne);
+      };
     };
-    animate();
+    loop(startX, endX);
 
     wrapper.onclick = () => {
       const a = (wrapper as any)._anim as Animation | undefined;
@@ -207,7 +171,6 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
         </button>
       </div>
 
-      {/* Actions list modal */}
       {showList && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 modal-blur"
@@ -216,9 +179,7 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
           <div className="bg-white w-full max-w-6xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col border-4 border-sky-900">
             <div className="bg-sky-900 p-8 flex justify-between items-start text-white">
               <h2 className="text-3xl font-extrabold text-amber-400">כל מפרשי התקווה בסדנה</h2>
-              <button onClick={() => setShowList(false)} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full">
-                ✕
-              </button>
+              <button onClick={() => setShowList(false)} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full">✕</button>
             </div>
             <div className="p-8 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 bg-slate-50">
               {actions.length === 0 && (
@@ -239,7 +200,6 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
         </div>
       )}
 
-      {/* Add modal */}
       {showAdd && (
         <div
           className="fixed inset-0 z-[110] flex items-center justify-center p-4 modal-blur"
@@ -258,9 +218,7 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
             />
             <div className="flex justify-between items-center mt-6">
               <button onClick={() => setShowAdd(false)} className="text-slate-500 font-bold px-4">ביטול</button>
-              <button onClick={submitNew} className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg active:scale-95">
-                שלחו לים
-              </button>
+              <button onClick={submitNew} className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg active:scale-95">שלחו לים</button>
             </div>
           </div>
         </div>

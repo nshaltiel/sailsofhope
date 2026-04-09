@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import SeaView from "@/components/SeaView";
 
 export default function SlugPage() {
@@ -13,13 +14,9 @@ export default function SlugPage() {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase
-        .from("sessions")
-        .select("id")
-        .eq("slug", slug)
-        .single();
-      if (error || !data) setNotFound(true);
-      else setSessionId(data.id);
+      const snap = await getDocs(query(collection(db, "sessions"), where("slug", "==", slug), limit(1)));
+      if (snap.empty) setNotFound(true);
+      else setSessionId(snap.docs[0].id);
     })();
   }, [slug]);
 

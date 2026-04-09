@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { adminDb } from "@/lib/firebase-admin";
+
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   const { slug, text } = await req.json();
@@ -11,18 +13,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "text too short" }, { status: 400 });
   }
 
-  const { data: session, error: sErr } = await supabase
-    .from("sessions")
-    .select("id")
-    .eq("slug", slug)
-    .single();
-  if (sErr || !session) return NextResponse.json({ error: "session not found" }, { status: 404 });
+  const sess = await adminDb.collection("sessions").where("slug", "==", slug).limit(1).get();
+  if (sess.empty) return NextResponse.json({ error: "session not found" }, { status: 404 });
+  const sessionId = sess.docs[0].id;
 
-  const { data, error } = await supabase
-    .from("actions")
-    .insert({ session_id: session.id, text: trimmed })
-    .select()
-    .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  const doc = await adminDb.collection("actions").add({
+    session_id: sessionId,
+    text: trimmed,
+    created_at: Date.now(),
+  });
+  return NextResponse.json({ id: doc.id, session_id: sessionId, text: trimmed });
 }
