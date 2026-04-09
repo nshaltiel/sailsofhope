@@ -53,8 +53,8 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
     async function poll() {
       if (cancelled) return;
       try {
-        const res = await fetch(`/api/actions?sessionId=${sessionId}`);
-        if (!res.ok) return;
+        const res = await fetch(`/api/actions?sessionId=${sessionId}`, { cache: "no-store" });
+        if (!res.ok) { console.error("actions fetch failed", res.status); return; }
         const data: Action[] = await res.json();
 
         const currentIds = new Set(data.map((a) => a.id));
@@ -76,8 +76,8 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
         }
 
         setActions(data);
-      } catch {
-        // network hiccup — retry next cycle
+      } catch (e) {
+        console.error("polling error", e);
       } finally {
         if (!cancelled) setTimeout(poll, 2000);
       }

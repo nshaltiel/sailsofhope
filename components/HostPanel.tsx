@@ -21,7 +21,7 @@ export default function HostPanel({
     async function poll() {
       if (cancelled) return;
       try {
-        const res = await fetch(`/api/actions?sessionId=${sessionId}`);
+        const res = await fetch(`/api/actions?sessionId=${sessionId}`, { cache: "no-store" });
         if (res.ok) {
           const data: Action[] = await res.json();
           setActions(data.slice().reverse()); // newest first

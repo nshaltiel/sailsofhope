@@ -12,17 +12,20 @@ export async function GET(req: Request) {
   const snap = await db
     .collection("actions")
     .where("session_id", "==", sessionId)
-    .orderBy("created_at", "asc")
     .get();
 
-  const actions = snap.docs.map((d) => ({
-    id: d.id,
-    session_id: d.get("session_id") as string,
-    text: d.get("text") as string,
-    created_at: d.get("created_at") as number,
-  }));
+  const actions = snap.docs
+    .map((d) => ({
+      id: d.id,
+      session_id: d.get("session_id") as string,
+      text: d.get("text") as string,
+      created_at: d.get("created_at") as number,
+    }))
+    .sort((a, b) => a.created_at - b.created_at);
 
-  return NextResponse.json(actions);
+  return NextResponse.json(actions, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }
 
 export async function POST(req: Request) {

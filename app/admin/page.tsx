@@ -25,18 +25,28 @@ export default function AdminPage() {
 
   async function deleteSession(id: string, title: string | null) {
     if (!confirm(`למחוק את הסדנה "${title || "ללא כותרת"}" וכל הפעולות שלה?`)) return;
-    await fetch("/api/admin/sessions/delete", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ session_id: id }),
-    });
+    try {
+      const res = await fetch("/api/admin/sessions/delete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ session_id: id }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert("מחיקה נכשלה: " + (j?.error || res.status));
+        return;
+      }
+    } catch {
+      alert("שגיאת רשת בעת מחיקה");
+      return;
+    }
     fetchSessions();
   }
 
   async function fetchSessions() {
     setLoadingSessions(true);
     try {
-      const res = await fetch("/api/admin/sessions");
+      const res = await fetch("/api/admin/sessions", { cache: "no-store" });
       const data = await res.json();
       setSessions(Array.isArray(data) ? data : []);
     } catch {
