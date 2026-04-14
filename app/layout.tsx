@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "מפרשים של תקווה",
-  description: "סדנאות חוסן למחנכים",
+  description: "",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
