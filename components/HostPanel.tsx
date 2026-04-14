@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type Action = { id: string; session_id: string; text: string; created_at: number };
 
@@ -15,25 +15,18 @@ export default function HostPanel({
 }) {
   const [actions, setActions] = useState<Action[]>([]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function poll() {
-      if (cancelled) return;
-      try {
-        const res = await fetch(`/api/actions?sessionId=${sessionId}`, { cache: "no-store" });
-        if (res.ok) {
-          const data: Action[] = await res.json();
-          setActions(data.slice().reverse()); // newest first
-        }
-      } catch { /* ignore */ } finally {
-        if (!cancelled) setTimeout(poll, 2000);
+  const fetchActions = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/actions?sessionId=${sessionId}`, { cache: "no-store" });
+      if (res.ok) {
+        const data: Action[] = await res.json();
+        setActions(data.slice().reverse());
       }
-    }
-
-    poll();
-    return () => { cancelled = true; };
+    } catch { /* ignore */ }
   }, [sessionId]);
+
+  // fetch once on mount
+  useEffect(() => { fetchActions(); }, [fetchActions]);
 
   async function del(id: string) {
     if (!confirm("למחוק את הפעולה הזו?")) return;
@@ -45,6 +38,8 @@ export default function HostPanel({
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
       alert("מחיקה נכשלה: " + (j?.error || res.status));
+    } else {
+      fetchActions();
     }
   }
 
@@ -71,8 +66,11 @@ export default function HostPanel({
         </div>
 
         <div className="bg-white rounded-2xl shadow overflow-hidden">
-          <div className="bg-sky-900 text-white p-4 font-bold">
-            פעולות בסדנה ({actions.length})
+          <div className="bg-sky-900 text-white p-4 font-bold flex justify-between items-center">
+            <span>פעולות בסדנה ({actions.length})</span>
+            <button onClick={fetchActions} className="text-sky-200 hover:text-white text-sm font-medium">
+              🔄 רענן
+            </button>
           </div>
           <ul className="divide-y divide-slate-100">
             {actions.length === 0 && (

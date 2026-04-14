@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Action = { id: string; session_id: string; text: string; created_at: number };
 
@@ -46,47 +46,37 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
     }
   }, []);
 
-  // polling
-  useEffect(() => {
-    let cancelled = false;
+  const fetchActions = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/actions?sessionId=${sessionId}`, { cache: "no-store" });
+      if (!res.ok) { console.error("actions fetch failed", res.status); return; }
+      const data: Action[] = await res.json();
 
-    async function poll() {
-      if (cancelled) return;
-      try {
-        const res = await fetch(`/api/actions?sessionId=${sessionId}`, { cache: "no-store" });
-        if (!res.ok) { console.error("actions fetch failed", res.status); return; }
-        const data: Action[] = await res.json();
+      const currentIds = new Set(data.map((a) => a.id));
 
-        const currentIds = new Set(data.map((a) => a.id));
-
-        // new actions → create boats
-        for (const action of data) {
-          if (!knownIds.current.has(action.id)) {
-            knownIds.current.add(action.id);
-            createBoat(action);
-          }
+      for (const action of data) {
+        if (!knownIds.current.has(action.id)) {
+          knownIds.current.add(action.id);
+          createBoat(action);
         }
-
-        // removed actions → remove boats
-        for (const id of Array.from(knownIds.current)) {
-          if (!currentIds.has(id)) {
-            knownIds.current.delete(id);
-            removeBoat(id);
-          }
-        }
-
-        setActions(data);
-      } catch (e) {
-        console.error("polling error", e);
-      } finally {
-        if (!cancelled) setTimeout(poll, 2000);
       }
-    }
 
-    poll();
-    return () => { cancelled = true; };
+      for (const id of Array.from(knownIds.current)) {
+        if (!currentIds.has(id)) {
+          knownIds.current.delete(id);
+          removeBoat(id);
+        }
+      }
+
+      setActions(data);
+    } catch (e) {
+      console.error("fetch error", e);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  // fetch once on mount
+  useEffect(() => { fetchActions(); }, [fetchActions]);
 
   function removeBoat(id: string) {
     const node = boatNodes.current.get(id);
@@ -174,6 +164,12 @@ export default function SeaView({ sessionId, slug }: { sessionId: string; slug: 
       </header>
 
       <div className="fixed bottom-8 right-8 flex flex-col gap-4 z-50">
+        <button
+          onClick={fetchActions}
+          className="bg-white/80 hover:bg-white text-sky-900 font-bold py-3 px-5 rounded-2xl shadow-lg transition-all transform hover:scale-105 flex items-center gap-2 border border-sky-200 text-sm"
+        >
+          🔄 רענון נתונים
+        </button>
         <button
           onClick={() => setShowAdd(true)}
           className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-2xl shadow-xl transition-all transform hover:scale-105 flex items-center gap-3 border-2 border-orange-200"

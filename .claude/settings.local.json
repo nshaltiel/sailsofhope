@@ -19,7 +19,8 @@
       "Bash(git -c user.email=\"nadav@local\" -c user.name=\"Nadav\" commit -m \"fix: lazy-init firebase-admin to avoid build-time crash\")",
       "Bash(git -c user.email=\"nadav@local\" -c user.name=\"Nadav\" commit -m \"feat: admin login + fix stuck button bug\")",
       "Bash(git -c user.email=\"nadav@local\" -c user.name=\"Nadav\" commit -m \"fix: login redirect + change password to admin123\")",
-      "Bash(git -c user.email=\"nadav@local\" -c user.name=\"Nadav\" commit -m \"fix: use Web Crypto API in middleware \\(Edge runtime\\)\")"
+      "Bash(git -c user.email=\"nadav@local\" -c user.name=\"Nadav\" commit -m \"fix: use Web Crypto API in middleware \\(Edge runtime\\)\")",
+      "Bash(git -c user.email=\"nadav@local\" -c user.name=\"Nadav\" commit -m \"fix: replace polling with manual refresh to avoid quota exhaustion\")"
     ]
   }
 }
